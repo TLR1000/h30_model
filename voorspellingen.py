@@ -77,7 +77,7 @@ def predict_expected_goals(team_stats, home_team, away_team, league_avg_goals, h
     return lambda_home, lambda_away
 
 # Functie om wedstrijdresultaat te voorspellen
-def predict_match_outcome(lambda_home, lambda_away, max_goals=11):
+def predict_match_outcome(lambda_home, lambda_away, max_goals=12):
     # Mogelijke doelpuntenaantallen
     home_goals = np.arange(0, max_goals+1)
     away_goals = np.arange(0, max_goals+1)
@@ -94,7 +94,10 @@ def predict_match_outcome(lambda_home, lambda_away, max_goals=11):
     max_prob_index = np.unravel_index(prob_matrix.argmax(), prob_matrix.shape)
     most_probable_score = (home_goals[max_prob_index[0]], away_goals[max_prob_index[1]])
 
-    return home_win_prob, draw_prob, away_win_prob, most_probable_score
+    # Waarschijnlijkheid van de meest waarschijnlijke uitslag
+    most_probable_score_prob = prob_matrix[max_prob_index]
+
+    return home_win_prob, draw_prob, away_win_prob, most_probable_score, most_probable_score_prob
 
 # Hoofdprogramma
 if __name__ == "__main__":
@@ -139,13 +142,27 @@ if __name__ == "__main__":
         lambda_home, lambda_away = predict_expected_goals(
             team_stats, home_team, away_team, league_avg_goals, home_advantage)
 
-        home_win_prob, draw_prob, away_win_prob, most_probable_score = predict_match_outcome(
+        home_win_prob, draw_prob, away_win_prob, most_probable_score, most_probable_score_prob = predict_match_outcome(
             lambda_home, lambda_away, max_goals=12)
+
+        # Bepalen van de voorspelde winnaar
+        if home_win_prob > away_win_prob and home_win_prob > draw_prob:
+            voorspelling = f"{home_team} wint"
+            voorspelling_prob = home_win_prob
+        elif away_win_prob > home_win_prob and away_win_prob > draw_prob:
+            voorspelling = f"{away_team} wint"
+            voorspelling_prob = away_win_prob
+        else:
+            voorspelling = "Gelijkspel"
+            voorspelling_prob = draw_prob
 
         predictions.append({
             'Wedstrijd': f"{home_team} vs {away_team}",
             'Verwachte Doelpunten': f"{lambda_home:.2f} - {lambda_away:.2f}",
             'Meest Waarschijnlijke Uitslag': f"{most_probable_score[0]} - {most_probable_score[1]}",
+            'Waarschijnlijkheid Uitslag': f"{most_probable_score_prob*100:.2f}%",
+            'Voorspelling': voorspelling,
+            'Waarschijnlijkheid Voorspelling': f"{voorspelling_prob*100:.2f}%",
             'Winstkansen': f"{home_win_prob*100:.1f}% - {draw_prob*100:.1f}% - {away_win_prob*100:.1f}%"
         })
 
