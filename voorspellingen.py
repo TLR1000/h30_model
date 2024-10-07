@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import poisson
 import sys
 import os
+from itertools import product
 
 # Functie om wedstrijduitslagen te lezen
 def read_match_results(file_path):
@@ -99,6 +100,23 @@ def predict_match_outcome(lambda_home, lambda_away, max_goals=12):
 
     return home_win_prob, draw_prob, away_win_prob, most_probable_score, most_probable_score_prob
 
+# Functie om de nog niet gespeelde wedstrijden te genereren
+def generate_remaining_fixtures(df, teams):
+    # Alle mogelijke wedstrijden (thuis en uit)
+    all_matches = pd.DataFrame(list(product(teams, teams)), columns=['HomeTeam', 'AwayTeam'])
+    # Verwijder wedstrijden tegen zichzelf
+    all_matches = all_matches[all_matches['HomeTeam'] != all_matches['AwayTeam']]
+
+    # Voeg kolom toe om aan te geven of de wedstrijd al is gespeeld
+    df['MatchID'] = df['HomeTeam'] + '_' + df['AwayTeam']
+    all_matches['MatchID'] = all_matches['HomeTeam'] + '_' + all_matches['AwayTeam']
+
+    # Bepaal welke wedstrijden al zijn gespeeld
+    played_matches = df['MatchID'].unique()
+    remaining_fixtures = all_matches[~all_matches['MatchID'].isin(played_matches)].drop('MatchID', axis=1)
+
+    return remaining_fixtures.reset_index(drop=True)
+
 # Hoofdprogramma
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -116,21 +134,16 @@ if __name__ == "__main__":
     # Data voorbereiden
     team_stats, league_avg_goals = prepare_poisson_data(match_results)
 
-    # Komende wedstrijden definiëren
-    # Hier ga ik ervan uit dat je de fixtures in het script zelf definieert.
-    fixtures = pd.DataFrame({
-        'HomeTeam': ['Victoria', 'Victoria', 'Victoria', 'Hudito', 'Hudito', 'Forcial', 'HDM', 'HDM', 'Cartouche', 'Voorne', 'Voorne', 'Barendrecht'],
-        'AwayTeam': ['Hudito', 'Forcial', 'Roomburg', 'Forcial', 'HDM', 'Cartouche', 'Cartouche', 'Voorne', 'Barendrecht', 'Barendrecht', 'Roomburg', 'Roomburg']
-    })
+    # Lijst van teams verkrijgen
+    teams = team_stats.index.tolist()
 
-    # Controleren of alle teams in de fixtures bestaan in de teamstatistieken
-    all_teams = set(team_stats.index)
-    fixture_teams = set(fixtures['HomeTeam']).union(set(fixtures['AwayTeam']))
+    # Nog niet gespeelde wedstrijden genereren
+    fixtures = generate_remaining_fixtures(match_results, teams)
 
-    missing_teams = fixture_teams - all_teams
-    if missing_teams:
-        print(f"De volgende teams uit de fixtures zijn niet gevonden in de teamstatistieken: {missing_teams}")
-        sys.exit(1)
+    # Controleren of er nog fixtures zijn om te voorspellen
+    if fixtures.empty:
+        print("Er zijn geen nog niet gespeelde wedstrijden om te voorspellen.")
+        sys.exit(0)
 
     # Voorspellingen genereren
     predictions = []
